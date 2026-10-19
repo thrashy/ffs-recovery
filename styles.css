@@ -84,7 +84,8 @@ main { display: block; max-width: 760px; margin: 0 auto; padding: 0 var(--gutter
 .iconbtn { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: transparent; color: var(--text); cursor: pointer; transition: border-color .2s; }
 .iconbtn:hover { border-color: var(--control); }
 .iconbtn.solid { border-color: var(--copper); background: var(--copper); color: #fff; }
-.iconbtn:disabled { opacity: .35; cursor: not-allowed; }
+.iconbtn:disabled, .iconbtn[aria-disabled=true] { opacity: .35; cursor: not-allowed; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .link { min-height: 44px; padding: 0 8px; border: 0; background: none; color: var(--copper-hi); text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
 .btn:active, .pill:active, .iconbtn:active, .call:active { filter: brightness(.88); }
 

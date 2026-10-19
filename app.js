@@ -38,22 +38,23 @@
   let state = load();
   let viewDate = P.iso(new Date());
   let icsHourly = false;
-  let blobs = []; // calendar-file URLs made by the current render
-
-  // Calendar files go in real links the user taps: iPhone Safari only hands a generated file to Calendar that way.
-  function calendarFile(text) {
-    const url = URL.createObjectURL(new Blob([text], { type: 'text/calendar;charset=utf-8' }));
-    blobs.push(url);
-    return url;
-  }
+  let lastFile; // blob URL of the calendar file built at the last tap
 
   function load() {
+    const d = P.defaultProfile();
     try {
       const s = JSON.parse(localStorage.getItem(KEY));
-      if (s && s.profile) return { done: {}, count: {}, doses: [], kit: {}, ...s, profile: { ...P.defaultProfile(), ...s.profile } };
+      if (s && s.profile) {
+        const p = { ...d, ...s.profile, times: { ...d.times, ...s.profile.times }, care: { ...(s.profile.care || d.care) }, meds: { ...s.profile.meds } };
+        p.procedures = (p.procedures || []).filter(id => P.PROCEDURES.some(x => x.id === id));
+        if (!Array.isArray(p.appts)) p.appts = d.appts;
+        if (!Array.isArray(p.dex) || p.dex.length !== 3) p.dex = d.dex;
+        return { done: {}, count: {}, doses: [], kit: {}, ...s, profile: p };
+      }
     } catch (e) { /* storage blocked or corrupt: start fresh */ }
-    return { profile: P.defaultProfile(), done: {}, count: {}, doses: [], kit: {} };
+    return { profile: d, done: {}, count: {}, doses: [], kit: {} };
   }
+  const announce = msg => { $('#sr').textContent = ''; setTimeout(() => { $('#sr').textContent = msg; }, 50); }; // for screen readers
   function save() {
     try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { toast('Your browser is blocking storage, so changes will not be kept.'); }
   }
@@ -100,7 +101,7 @@
     const rules = P.rulesFor(p, d), prn = isToday ? P.prnFor(p, d) : [];
     const logged = isToday ? [] : state.doses.filter(x => P.iso(new Date(x.at)) === d).sort((a, b) => a.at - b.at);
     const appt = isToday && nextAppt();
-    const D = p.dischargeDate || p.surgeryDate;
+    const D = P.discharge(p);
     return `
       <section class="hero">
         <p class="eyebrow">${esc(dayLabel(d))}</p>
@@ -131,8 +132,8 @@
       const n = state.count[t.key] || 0;
       return `<div class="task"><span class="body">${head}<span class="detail">${esc(t.detail)}</span></span>
         <span class="counter">
-          <button class="iconbtn" type="button" data-act="sets" data-key="${esc(t.key)}" data-n="-1" data-focus="sets-minus" aria-label="Remove a set"${n ? '' : ' disabled'}>${icon('minus')}</button>
-          <output aria-live="polite"><strong>${n}</strong> ${n === 1 ? 'set' : 'sets'}</output>
+          <button class="iconbtn" type="button" data-act="sets" data-key="${esc(t.key)}" data-n="-1" data-focus="sets-minus" aria-label="Remove a set"${n ? '' : ' aria-disabled="true"'}>${icon('minus')}</button>
+          <output><strong>${n}</strong> ${n === 1 ? 'set' : 'sets'}</output>
           <button class="iconbtn solid" type="button" data-act="sets" data-key="${esc(t.key)}" data-n="1" data-focus="sets-plus" aria-label="Log a set">${icon('plus')}</button>
         </span></div>`;
     }
@@ -148,22 +149,22 @@
     const recent = state.doses.filter(x => x.med === id && x.at > Date.now() - 864e5).sort((a, b) => a.at - b.at);
     let status = '';
     if (st.blocked) status = `<p class="status warn">${icon('alert')}<span>${esc(st.blocked)}</span></p>`;
-    else if (st.next) status = `<p class="status">${icon('clock')}<span>Next dose from <strong>${esc(fmtWhen(st.next))}</strong> (in ${fmtIn(st.next)})</span></p>`;
+    else if (st.next) status = `<p class="status">${icon('clock')}<span>Next dose from <strong>${esc(fmtWhen(st.next))}</strong> (in <span data-until="${st.next}">${fmtIn(st.next)}</span>)</span></p>`;
     else if (def.every) status = `<p class="status ok">${icon('check')}<span>${st.last ? 'The next dose is allowed now' : 'No doses logged yet'}</span></p>`;
     else if (st.last) status = `<p class="status">${icon('clock')}<span>Last taken ${esc(fmtWhen(st.last))}</span></p>`;
     return `<article class="card prn">
       <h3>${esc(def.name)}</h3>
       <p class="detail">${esc(def.rule)}</p>
       ${status}
-      ${id === 'toradol' ? `<p class="meta">${st.mg24} of 40 mg in the last 24 hours · last day ${esc(fmtDate(st.lastDay))}</p>` : ''}
-      ${st.next && !st.blocked ? `<div class="remind"><p>${icon('bell')}Remind me at ${esc(clock(st.next))}</p>
-        <a href="${calendarFile(P.reminderICS(id, st.next))}" download="${id}-next-dose.ics">Apple Calendar</a>
-        <a href="${esc(P.reminderURL(id, st.next))}" target="_blank" rel="noopener">Google Calendar</a></div>` : ''}
+      ${id === 'toradol' ? `<p class="meta">${st.mg24} of 40 mg in the last 24 hours · last day ${esc(fmtDate(st.lastDay))} (your discharge day counts as day 1)</p>` : ''}
+      ${st.next && !st.blocked ? `<div class="remind"><p>${icon('bell')}Remind me at ${esc(fmtWhen(st.next))}</p>
+        <a href="#" download="${id}-next-dose.ics" data-ics="${id}" data-at="${st.next}" data-focus="apple-${id}">Apple Calendar</a>
+        <a href="${esc(P.reminderURL(id, st.next))}" target="_blank" rel="noopener" data-focus="google-${id}">Google Calendar</a></div>` : ''}
       ${recent.length ? `<ul class="doses" aria-label="Doses in the last 24 hours">${recent.map(x => `<li>${esc(fmtWhen(x.at))}<button type="button" class="x" data-act="undose" data-id="${esc(x.id)}" aria-label="Remove the ${esc(fmtWhen(x.at))} dose">${icon('x')}</button></li>`).join('')}</ul>` : ''}
       <div class="prn-actions">
         <button type="button" class="btn${!st.blocked && !st.next ? '' : ' ghost'}" data-act="dose" data-med="${id}" data-focus="dose-${id}">Log a dose now</button>
         <details><summary>Took it earlier?</summary>
-          <div class="row"><input type="datetime-local" id="when-${id}" aria-label="When you took ${esc(def.name)}"><button type="button" class="btn ghost" data-act="dose" data-med="${id}" data-when="when-${id}">Log</button></div>
+          <div class="row"><input type="datetime-local" id="when-${id}" aria-label="When you took ${esc(def.name)}"><button type="button" class="btn ghost" data-act="dose" data-med="${id}" data-when="when-${id}" data-focus="dose-${id}">Log</button></div>
         </details>
       </div>
     </article>`;
@@ -178,13 +179,13 @@
   function plan() {
     const p = state.profile, S = p.surgeryDate, entries = P.timeline(p);
     const phases = [['Before surgery', -Infinity, -1], ['Surgery day', 0, 0], ['The first two weeks', 1, 13], ['Weeks 3 to 6', 14, 41], ['To three months', 42, Infinity]];
-    const open = P.series(p).filter(s => s.count == null).map(s => s.title.split(/[:(]/)[0].trim());
+    const open = entries.filter(e => e.until === null).map(e => e.title.split(/[:(]/)[0].trim());
     return `
       <section class="hero">
         <p class="eyebrow">Your plan · Surgery ${esc(fmtDate(S, { weekday: 'short', month: 'long', day: 'numeric' }))}</p>
         <h1 class="display">Every step, <em>from prep to three months.</em></h1>
         <div class="actions">
-          <a class="pill" href="${calendarFile(P.toICS(p, { hourly: icsHourly }))}" download="recovery-plan.ics" data-focus="ics">Add to my calendar<span class="dot">${icon('calendar')}</span></a>
+          <a class="pill" href="#" download="recovery-plan.ics" data-ics="plan" data-focus="ics">Add to my calendar<span class="dot">${icon('calendar')}</span></a>
           ${p.care.masseter ? `<label class="inline"><input class="check sm" type="checkbox" data-act="hourly" data-focus="hourly"${icsHourly ? ' checked' : ''}> Include hourly jaw-exercise reminders</label>` : ''}
         </div>
         <p class="hint">A calendar file with an alarm for every step, so your phone reminds you even when this site is closed. On iPhone, open this page in Safari. Google Calendar can only import the file on a computer (calendar.google.com, then Settings, then Import).${open.length ? ` ${esc(open.join(' and '))} ${open.length > 1 ? 'are' : 'is'} left out until you add the course length in My sheet.` : ''}</p>
@@ -234,7 +235,7 @@
       <section class="hero">
         <p class="eyebrow">My sheet</p>
         <h1 class="display">Match the plan to <em>your instructions.</em></h1>
-        <p class="lede">Have your Medication Guide and Post-Operative Care Instructions in hand. Changes save as you go, on this device only.</p>
+        <p class="lede">Have your Medication Guide and Post-Operative Care Instructions in hand; more instructions may be in your Master Surgery Packet. Changes save as you go, on this device only.</p>
       </section>
       <form class="setup" novalidate>
         <fieldset><legend><span class="step">01</span>Dates</legend>
@@ -243,7 +244,10 @@
               <input id="f-surgery" type="date" data-field="surgeryDate" value="${v('surgeryDate')}" required aria-describedby="err-surgery">
               <p class="err" id="err-surgery" hidden>Add your surgery date to build your plan.</p></div>
             ${field('Arrival time at the surgery center', `<input type="time" data-field="arrival" value="${v('arrival')}">`, 'Used to work out your last meal and drink.')}
-            ${field('Discharge date', `<input id="f-discharge" type="date" data-field="dischargeDate" value="${v('dischargeDate')}" min="${v('surgeryDate')}">`, 'The day you go home. The antibiotic and steroid schedules start that day.')}
+            <div class="field"><label for="f-discharge">Discharge date</label>
+              <input id="f-discharge" type="date" data-field="dischargeDate" value="${v('dischargeDate')}" min="${v('surgeryDate')}" aria-describedby="hint-discharge err-discharge">
+              <small id="hint-discharge">Leave blank if you go home on surgery day. The antibiotic and steroid schedules start the day you go home.</small>
+              <p class="err" id="err-discharge" hidden>The discharge date can't be before the surgery date.</p></div>
           </div>
         </fieldset>
         <fieldset><legend><span class="step">02</span>Procedures</legend>
@@ -286,16 +290,12 @@
     let view = location.hash.slice(1);
     if (!['today', 'plan', 'setup'].includes(view)) view = 'today';
     if (!state.profile.surgeryDate && view !== 'setup') view = 'welcome';
-    const stale = blobs;
-    blobs = [];
-    setTimeout(() => stale.forEach(u => URL.revokeObjectURL(u)), 60000); // a tap on a just-replaced link still works
     const focus = document.activeElement && document.activeElement.dataset.focus, main = $('#main');
     main.innerHTML = VIEWS[view]();
     main.dataset.view = view;
     document.title = `${TITLES[view]} · Recovery Companion`;
     document.querySelectorAll('.tabs a').forEach(a => (a.hash === '#' + view ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
-    const el = focus && main.querySelector(`[data-focus="${CSS.escape(focus)}"]`);
-    if (el) el.focus({ preventScroll: true });
+    if (focus) (main.querySelector(`[data-focus="${CSS.escape(focus)}"]`) || main).focus({ preventScroll: true });
   }
 
   let toastTimer;
@@ -316,30 +316,62 @@
       at = new Date(v).getTime();
       if (at > Date.now()) return toast('That time is in the future.');
     }
-    const early = !b.dataset.when && P.prnStatus(p, state.doses, med).next;
+    const st = P.prnStatus(p, state.doses.filter(x => x.at <= at), med, at);
+    const warn = st.blocked ? ' That is past the 4-day Toradol limit. Call the office before taking more.'
+      : st.next ? ' That is sooner than your instructions allow. Call the office if you are unsure.' : '';
     const dose = { id: Math.random().toString(36).slice(2, 10), med, at };
     if (med === 'toradol') dose.mg = +p.toradolMg || 10;
     state.doses.push(dose);
     save(); render();
-    toast(`${P.PRN[med].name} logged at ${clock(at)}.${early ? ' That is sooner than the usual interval. Call the office if you are unsure.' : ''}`,
+    toast(`${P.PRN[med].name} logged at ${fmtWhen(at)}.${warn}`,
       () => { state.doses = state.doses.filter(x => x.id !== dose.id); save(); render(); });
   }
 
+  // Calendar files are built into the real link just before it's used, since iPhone Safari only hands a tapped
+  // link's file to Calendar. Pointer-down, focus and right-click cover long-press and "Save link as" too.
+  function prepareFile(a) {
+    const ics = a.dataset.ics === 'plan' ? P.toICS(state.profile, { hourly: icsHourly }) : P.reminderICS(a.dataset.ics, +a.dataset.at);
+    URL.revokeObjectURL(lastFile);
+    a.href = lastFile = URL.createObjectURL(new Blob([ics], { type: 'text/calendar;charset=utf-8' }));
+  }
+  for (const type of ['pointerdown', 'focusin', 'contextmenu']) {
+    document.addEventListener(type, e => { const a = e.target.closest && e.target.closest('a[data-ics]'); if (a) prepareFile(a); });
+  }
+
+  function turnOn(id) { // a care box, plus the boxes its text includes
+    state.profile.care[id] = true;
+    const box = document.querySelector(`[data-care="${id}"]`);
+    if (box) box.checked = true;
+    (P.CARE.find(x => x.id === id).also || []).forEach(turnOn);
+  }
+  const datesOk = () => { const p = state.profile, ok = !p.dischargeDate || !p.surgeryDate || p.dischargeDate >= p.surgeryDate; const e = $('#err-discharge'); if (e) e.hidden = ok; return ok; };
+
   document.addEventListener('click', e => {
-    const file = e.target.closest('a[download]');
-    if (file) toast(`If your calendar doesn't open, find ${file.download} in your downloads and open it.`);
+    if (e.target.closest('.skip')) { e.preventDefault(); $('#main').focus(); return; } // not through the #hash router
+    const file = e.target.closest('a[data-ics]');
+    if (file) {
+      prepareFile(file);
+      toast(`If your calendar doesn't open, find ${file.download} in your downloads and open it.`);
+    }
     const b = e.target.closest('button[data-act]');
     if (!b) return;
     const p = state.profile, act = b.dataset.act;
-    if (act === 'day') { viewDate = P.addDays(viewDate, +b.dataset.n); render(); }
-    else if (act === 'today') { viewDate = P.iso(new Date()); render(); }
-    else if (act === 'sets') { state.count[b.dataset.key] = Math.max(0, (state.count[b.dataset.key] || 0) + +b.dataset.n); save(); render(); }
+    if (act === 'day' || act === 'today') {
+      viewDate = act === 'today' ? P.iso(new Date()) : P.addDays(viewDate, +b.dataset.n);
+      render();
+      announce(fmtDate(viewDate, { weekday: 'long', month: 'long', day: 'numeric' }));
+    } else if (act === 'sets') {
+      const n = state.count[b.dataset.key] = Math.max(0, (state.count[b.dataset.key] || 0) + +b.dataset.n);
+      save(); render();
+      announce(`${n} ${n === 1 ? 'set' : 'sets'} today`);
+    }
     else if (act === 'dose') logDose(b);
     else if (act === 'undose') { state.doses = state.doses.filter(x => x.id !== b.dataset.id); save(); render(); toast('Dose removed.'); }
     else if (act === 'add-appt') { const id = Date.now().toString(36); p.appts.push({ id, label: '', at: '' }); save(); render(); $('#al-' + id).focus(); }
     else if (act === 'del-appt') { p.appts = p.appts.filter(a => a.id !== b.dataset.id); save(); render(); }
     else if (act === 'finish') {
       if (!p.surgeryDate) { $('#err-surgery').hidden = false; $('#f-surgery').setAttribute('aria-invalid', 'true'); $('#f-surgery').focus(); return; }
+      if (!datesOk()) { $('#f-discharge').focus(); return; }
       viewDate = P.iso(new Date());
       location.hash = '#today';
     } else if (act === 'reset') {
@@ -368,7 +400,7 @@
     if (ds.kit) state.kit[ds.kit] = el.checked;
     else if (ds.field) {
       let val = el.value;
-      const prev = p[ds.field];
+      if (el.type === 'date' && val && val < '2000') return; // Chrome reports half-typed years (0002, 0020, ...)
       if (el.type === 'number' && val !== '') el.value = val = Math.min(+el.max, Math.max(+el.min, Math.round(+val)));
       if (ds.field.startsWith('times.')) {
         if (!val) { el.value = p.times[ds.field.slice(6)]; return; }
@@ -377,20 +409,15 @@
       if (ds.field === 'surgeryDate' && val) {
         $('#err-surgery').hidden = true;
         el.removeAttribute('aria-invalid');
-        // Discharge follows the surgery date until it's set to something else. Chrome fires
-        // change for each typed year digit (0002, 0020, ...), so copying only once would stick.
-        if (!p.dischargeDate || p.dischargeDate === prev) p.dischargeDate = $('#f-discharge').value = val;
         $('#f-discharge').min = val;
       }
+      if (ds.field === 'surgeryDate' || ds.field === 'dischargeDate') datesOk();
     } else if (ds.proc) {
       p.procedures = el.checked ? [...new Set([...p.procedures, ds.proc])] : p.procedures.filter(x => x !== ds.proc);
-      const needed = id => p.procedures.some(pid => P.PROCEDURES.find(x => x.id === pid).care.includes(id));
-      for (const id of P.PROCEDURES.find(x => x.id === ds.proc).care) {
-        p.care[id] = el.checked || needed(id);
-        const box = document.querySelector(`[data-care="${id}"]`);
-        if (box) box.checked = p.care[id];
-      }
-    } else if (ds.care) p.care[ds.care] = el.checked;
+      if (el.checked) P.PROCEDURES.find(x => x.id === ds.proc).care.forEach(turnOn); // unticking leaves boxes set from the sheet
+    } else if (ds.care) {
+      if (el.checked) turnOn(ds.care); else p.care[ds.care] = false;
+    }
     else if (ds.med) p.meds[ds.med] = el.checked;
     else if (ds.dex) { const [d, j] = ds.dex.split(',').map(Number); p.dex[d][j] = el.checked; }
     else if (ds.appt) { const a = p.appts.find(x => x.id === ds.appt); if (a) a[ds.k] = el.value; }
@@ -398,16 +425,27 @@
     save();
   });
 
-  // The clinic doesn't publish this address, so it's assembled here instead of sitting in the HTML for scrapers.
+  // The clinic doesn't publish this address. Assembling it here keeps it out of the HTML, which stops simple
+  // scrapers; anything that runs JavaScript will still see it.
   const paEmail = ['clinical', 'deschamps-braly.com'].join('@');
   $('#pa-email').textContent = paEmail;
   $('#pa-email').href = `mailto:${paEmail}?subject=${encodeURIComponent('Patient question')}&body=${encodeURIComponent('Name:\r\nDate of surgery:\r\nPharmacy (for prescriptions):\r\n\r\n')}`;
 
   document.addEventListener('submit', e => e.preventDefault());
   window.addEventListener('hashchange', () => { render(); window.scrollTo(0, 0); $('#main').focus({ preventScroll: true }); });
-  // Keep the as-needed countdowns current without disturbing someone mid-edit.
-  setInterval(() => {
-    if (document.visibilityState === 'visible' && $('#main').dataset.view === 'today' && !document.querySelector('#main details[open], #main input:focus')) render();
-  }, 30000);
+  window.addEventListener('storage', e => { if (e.key === KEY) { state = load(); render(); } }); // another tab saved
+  // Countdowns update in place, so focus and screen-reader position stay put. The page redraws only when a waiting
+  // dose becomes allowed, or when the day changes (left open overnight, or the phone wakes the app the next morning).
+  let shownDay = P.iso(new Date());
+  function tick() {
+    if (document.visibilityState !== 'visible') return;
+    const day = P.iso(new Date());
+    if (day !== shownDay) { if (viewDate === shownDay) viewDate = day; shownDay = day; render(); return; }
+    const waits = [...document.querySelectorAll('[data-until]')];
+    if (waits.some(el => +el.dataset.until <= Date.now()) && !document.querySelector('#main details[open], #main input:not([type=checkbox]):focus')) { render(); return; }
+    waits.forEach(el => { el.textContent = fmtIn(+el.dataset.until); });
+  }
+  setInterval(tick, 30000);
+  document.addEventListener('visibilitychange', tick);
   render();
 })();

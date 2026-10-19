@@ -41,14 +41,15 @@
     { id: 'facelift', name: 'Facelift & neck lift', care: [] },
   ];
 
-  // The boxes on the Post-Operative Care Instructions sheet.
+  // The boxes on the Post-Operative Care Instructions sheet. `also` = boxes whose text includes another
+  // instruction (e.g. the nose box says to start BIOCORNEUM), switched on with them.
   const CARE = [
-    { id: 'oral', name: 'Oral care (genioplasty / jaw contouring)', note: 'Salt-water rinses, chlorhexidine mouthwash, gentle brushing.' },
-    { id: 'lipEar', name: 'Upper lip lift / otoplasty incisions', note: 'Vaseline on the incisions for 2 weeks.' },
+    { id: 'oral', name: 'Oral care (genioplasty / jaw contouring)', note: 'Salt-water rinses, chlorhexidine mouthwash, gentle brushing.', also: ['diet'] },
+    { id: 'lipEar', name: 'Upper lip lift / otoplasty incisions', note: 'Vaseline on the incisions for 2 weeks.', also: ['scarGel'] },
     { id: 'earCompression', name: 'Otoplasty compression garment', note: 'All day for 2 weeks, then at night until week 6.' },
-    { id: 'scalp', name: 'Forehead / scalp incision', note: 'BIOCORNEUM on the visible scar from week 2.' },
+    { id: 'scalp', name: 'Forehead / scalp incision', note: 'BIOCORNEUM on the visible scar from week 2.', also: ['scarGel'] },
     { id: 'hairWash', name: 'Hair washing', note: 'Ketoconazole 2% shampoo once you wash your own hair.' },
-    { id: 'nose', name: 'Nose', note: 'Cast care, back-sleeping, glasses guard, Flonase after splints.' },
+    { id: 'nose', name: 'Nose', note: 'Cast care, back-sleeping, glasses guard, Flonase after splints.', also: ['scarGel'] },
     { id: 'masseter', name: 'Masseter muscle reduction', note: 'Jaw-opening exercises every hour for 2 weeks.' },
     { id: 'fat', name: 'Fat grafting', note: 'No ice or cold compresses on grafted areas for 72 hours.' },
     { id: 'dressing', name: 'Dressings', note: 'Do not remove any dressings or bandages.' },
@@ -97,17 +98,23 @@
     };
   }
 
-  const ctx = p => { const S = p.surgeryDate, D = p.dischargeDate || S; return { S, D, A: p.arrival, same: D === S, wk2: addDays(S, 13) }; };
+  // Key dates. Discharge can't come before surgery: an empty or earlier discharge date means going home the same day.
+  // wk2/wk6 are the last days of the first 2 and 6 weeks; after2/after6 the days after them.
+  function ctx(p) {
+    const S = p.surgeryDate, D = p.dischargeDate > S ? p.dischargeDate : S, after2 = addDays(S, 14);
+    return { S, D, A: p.arrival, same: D === S, wk2: addDays(S, 13), after2, wk6: addDays(S, 41), after6: addDays(S, 42), gelEnd: addDays(addMonths(after2, 3), -1) };
+  }
   const beforeArrival = (p, h) => new Date(at(p.surgeryDate, p.arrival).getTime() - h * 36e5); // fasting cutoffs
-  const scarGelOn = p => ['scarGel', 'scalp', 'lipEar', 'nose'].some(id => p.care[id]); // every box that mentions it
-  const dietOn = p => p.care.diet || p.care.oral;
   const timeOf = (p, slot) => p.times[slot] || slot; // slot name or literal 'HH:MM'
+  // A bedtime (or hourly reminder) after midnight belongs to the evening before, so it falls on the next calendar date.
+  const lateNight = (slot, t) => (slot === 'bedtime' || slot === 'hourly') && t < '04:00';
+  const onDate = (date, slot, t) => (lateNight(slot, t) ? addDays(date, 1) : date);
 
   // A series = doses on `slots`, starting at `start` from slots[firstSlot], `count` doses in total
   // (null = open-ended, e.g. course length not entered yet).
   function series(p) {
     if (!p.surgeryDate) return [];
-    const { S, D, A, same, wk2 } = ctx(p), m = p.meds, c = p.care, out = [];
+    const { S, D, A, same, wk2, after2, wk6, gelEnd } = ctx(p), m = p.meds, c = p.care, out = [];
     const once = (id, kind, title, detail, date, slot) => out.push({ id, kind, title, detail, start: date, slots: [slot], count: 1 });
     // Daily from `start` through `end`. Going home on surgery day skips that day's earlier slots.
     const daily = (id, kind, title, detail, slots, start, end, extra) => {
@@ -154,17 +161,14 @@
     // Care
     if (c.oral) {
       daily('chx', 'care', 'Chlorhexidine mouthwash', 'Twice a day for 2 weeks.', ['breakfast', 'bedtime'], D, wk2);
-      daily('salt', 'care', 'Salt-water rinse', 'Swish and spit after meals: 1 teaspoon of salt in a glass of warm water.', ['breakfast', 'lunch', 'dinner'], D, wk2);
+      daily('salt', 'care', 'Salt-water rinse', 'Swish and spit after meals: 1 teaspoon of salt in a glass of warm water. Your sheet doesn\'t say for how long, so this follows the mouthwash\'s 2 weeks.', ['breakfast', 'lunch', 'dinner'], D, wk2);
     }
     if (c.lipEar) daily('vaseline', 'care', 'Vaseline on incisions', 'A thin layer, 1–2 times a day for 2 weeks.', ['breakfast'], D, wk2);
-    if (c.earCompression) daily('ear-night', 'care', 'Ear compression garment for sleep', 'Weeks 2–6: wear it at night only.', ['bedtime'], addDays(S, 14), addDays(S, 41));
+    if (c.earCompression) daily('ear-night', 'care', 'Ear compression garment for sleep', 'Weeks 2–6: wear it at night only.', ['bedtime'], after2, wk6);
     if (c.masseter) daily('jaw-ex', 'care', 'Jaw-opening exercises', 'Every hour while awake: open wide and hold for 10–15 seconds, then close. Repeat 10–15 times.', ['breakfast'], D, wk2, { hourly: true });
-    if (c.nose && p.splintOff) daily('flonase', 'med', 'Flonase (fluticasone): 2 sprays in each nostril', 'For one week after your splints are removed.', ['breakfast'], p.splintOff, addDays(p.splintOff, 6));
-    if (scarGelOn(p)) {
-      const g0 = addDays(S, 14);
-      daily('gel', 'care', 'BIOCORNEUM scar gel', 'A thin layer on all incisions; let it dry, then add SPF 50+ on top.' + (c.scalp ? ' On the forehead/scalp: the visible part of the scar.' : ''),
-        ['breakfast', 'bedtime'], g0, addDays(addMonths(g0, 3), -1));
-    }
+    if (c.nose && p.splintOff) daily('flonase', 'med', 'Flonase (fluticasone): 2 sprays in each nostril', 'For one week after your splints are removed. Your sheet doesn\'t say how many times a day, so check the label; this schedules once a day.', ['breakfast'], p.splintOff, addDays(p.splintOff, 6));
+    if (c.scarGel) daily('gel', 'care', 'BIOCORNEUM scar gel', 'A thin layer on all incisions; let it dry, then add SPF 50+ on top.' + (c.scalp ? ' On the forehead/scalp: the visible part of the scar.' : ''),
+      ['breakfast', 'bedtime'], after2, gelEnd);
 
     for (const a of p.appts) if (a.at) once('appt-' + a.id, 'appt', a.label || 'Appointment', '', a.at.slice(0, 10), a.at.slice(11, 16));
     return out;
@@ -185,67 +189,66 @@
       const d = daysBetween(r.first, date);
       if (d >= 0 && (r.n == null || d < r.n)) out.push({ key: `${s.id}|${date}|${r.slot}`, id: s.id, kind: s.kind, title: s.title, detail: s.detail, slot: r.slot, time: timeOf(p, r.slot), hourly: !!s.hourly });
     }
-    const key = t => (t.slot === 'bedtime' && t.time < '04:00' ? '1' : '0') + t.time; // after-midnight bedtimes sort last
+    const key = t => (lateNight(t.slot, t.time) ? '1' : '0') + t.time; // after-midnight bedtimes sort last
     return out.sort((a, b) => key(a).localeCompare(key(b)));
   }
 
   // Standing instructions that apply from `from` through `to`.
   function rules(p) {
     if (!p.surgeryDate) return [];
-    const { S, D, A, wk2 } = ctx(p), c = p.care, out = [];
+    const { S, D, A, wk2, after2, wk6, gelEnd } = ctx(p), c = p.care, out = [];
     const rule = (id, text, from, to) => out.push({ id, text, from, to });
     if (A) {
       const when = h => beforeArrival(p, h).toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
       rule('fast', `Fasting: a light meal (no fried or fatty foods, no meats) until ${when(6)}, and no more than 8 oz of clear liquids until ${when(2)}.`, addDays(S, -1), S);
     } else rule('fast', 'Before surgery: a light meal (no fried or fatty foods, no meats) until 6 hours before arrival, and no more than 8 oz of clear liquids until 2 hours before. Add your arrival time in My sheet to see exact times.', addDays(S, -1), S);
     if (c.dressing) rule('dressing', 'Do not remove any dressings or bandages.', S, wk2);
-    if (dietOn(p)) rule('diet', 'Semi-liquid diet for the first 2 weeks.', S, wk2);
+    if (c.diet) rule('diet', 'Semi-liquid diet for the first 2 weeks.', S, wk2);
     if (c.oral) {
       rule('brush', 'Brush gently with the soft toothbrush and avoid the gum line. Any toothpaste is fine.', S, wk2);
       rule('fingers', 'Do not put your fingers in your mouth or inspect the incisions.', S, wk2);
     }
     if (c.earCompression) rule('ear-day', 'Wear the ear compression garment all day.', S, wk2);
-    if (c.hairWash) rule('keto', 'When you start washing your own hair, use ketoconazole 2% shampoo (see your prescription). Avoid areas with thick scab until it comes off on its own.', D, addDays(S, 41));
+    if (c.hairWash) rule('keto', 'When you start washing your own hair, use ketoconazole 2% shampoo (see your prescription). Avoid areas with thick scab until it comes off on its own.', D, wk6);
     if (c.nose) {
       rule('cast', 'Keep the cast and dressing clean and dry, and do not remove it. Avoid steam. Reinforce it with tape and replace the drip pad as needed.', S, p.splintOff ? addDays(p.splintOff, -1) : wk2);
       rule('sleep-up', 'Sleep on your back, semi-upright.', S, wk2);
-      rule('sleep-back', 'Sleep on your back.', addDays(S, 14), addDays(S, 41));
-      rule('blow', 'Do not blow your nose or hold in a sneeze.', S, addDays(S, 41));
-      rule('glasses', 'Use the glasses guard.', S, addDays(S, 41));
+      rule('sleep-back', 'Sleep on your back.', after2, wk6);
+      rule('blow', 'Do not blow your nose or hold in a sneeze.', S, wk6);
+      rule('glasses', 'Use the glasses guard.', S, wk6);
       if (!p.splintOff) rule('flonase-later', 'Once your splints are out: Flonase, 2 sprays in each nostril for one week. Add the removal date in My sheet to schedule it.', D, wk2);
     }
     if (c.fat) rule('fat', 'No ice or cold compresses on areas where fat was injected (first 72 hours).', S, addDays(S, 3));
-    if (c.skin) rule('peel', 'No peeling skin products, such as retinol, until 6 weeks after surgery.', addDays(S, 14), addDays(S, 41));
-    if (scarGelOn(p)) rule('sun', 'Sun protection: SPF 50+ on top of BIOCORNEUM, plus hats or scarves.', addDays(S, 14), addDays(addMonths(addDays(S, 14), 3), -1));
+    if (c.skin) rule('peel', 'No peeling skin products, such as retinol, until 6 weeks after surgery.', after2, wk6);
+    if (c.scarGel) rule('sun', 'Sun protection: SPF 50+ on top of BIOCORNEUM, plus hats or scarves.', after2, gelEnd);
     return out;
   }
   const rulesFor = (p, date) => rules(p).filter(r => r.from <= date && date <= r.to);
 
   function milestones(p) {
     if (!p.surgeryDate) return [];
-    const { S, D } = ctx(p), c = p.care, out = [];
+    const { S, D, after2, after6, gelEnd } = ctx(p), c = p.care, out = [];
     const ms = (date, title, detail = '') => out.push({ date, title, detail });
     ms(S, 'Surgery day');
     ms(D, 'Going home', p.meds.xanax ? 'If needed, one Xanax XR tablet that morning. Do not crush or break it.' : '');
     if (p.meds.toradol) ms(addDays(D, PRN.toradol.maxDays - 1), 'Last day for Toradol', 'No more than 4 days in total once discharged.');
     if (c.fat) ms(addDays(S, 3), 'Fat grafting: the no-ice rule ends 72 hours after surgery');
-    if (dietOn(p)) ms(addDays(S, 14), 'Dental soft foods are allowed', 'Noodles, flaky fish, mashed potatoes, and so on.');
-    if (scarGelOn(p)) {
-      const g0 = addDays(S, 14);
-      ms(g0, 'Start BIOCORNEUM scar gel', 'Twice daily for 3 months, once the skin has fully healed (or when directed).');
-      ms(addMonths(g0, 3), 'BIOCORNEUM course complete');
+    if (c.diet) ms(after2, 'Dental soft foods are allowed', 'Noodles, flaky fish, mashed potatoes, and so on.');
+    if (c.scarGel) {
+      ms(after2, 'Start BIOCORNEUM scar gel', 'Twice daily for 3 months, once the skin has fully healed (or when directed).');
+      ms(addDays(gelEnd, 1), 'BIOCORNEUM course complete');
     }
     if (c.skin) {
-      ms(addDays(S, 14), 'You may resume your skin care', 'Except products that cause peeling.');
-      ms(addDays(S, 42), 'You may resume peeling products', 'Such as retinol.');
+      ms(after2, 'You may resume your skin care', 'Except products that cause peeling.');
+      ms(after6, 'You may resume peeling products', 'Such as retinol.');
     }
     if (c.nose) {
-      ms(addDays(S, 14), 'Nose: semi-upright sleeping ends', 'Keep sleeping on your back until 6 weeks.');
-      ms(addDays(S, 42), 'Nose: 6-week precautions end', 'Back-sleeping, no nose blowing, and the glasses guard.');
+      ms(after2, 'Nose: semi-upright sleeping ends', 'Keep sleeping on your back until 6 weeks.');
+      ms(after6, 'Nose: 6-week precautions end', 'Back-sleeping, no nose blowing, and the glasses guard.');
     }
     if (c.earCompression) {
-      ms(addDays(S, 14), 'Ear compression: nights only from now', 'Through week 6.');
-      ms(addDays(S, 42), 'Ear compression period ends');
+      ms(after2, 'Ear compression: nights only from now', 'Through week 6.');
+      ms(after6, 'Ear compression period ends');
     }
     return out.sort((a, b) => a.date.localeCompare(b.date));
   }
@@ -256,9 +259,10 @@
     for (const s of series(p)) {
       const rs = runs(s);
       if (!rs.length) continue;
-      const first = rs.reduce((a, r) => (r.first < a.first || (r.first === a.first && timeOf(p, r.slot) < timeOf(p, a.slot)) ? r : a));
-      const last = rs.some(r => r.n == null) ? null : rs.map(r => addDays(r.first, r.n - 1)).sort().pop();
-      out.push({ date: first.first, time: s.hourly ? '' : timeOf(p, first.slot), kind: s.kind, title: s.title, detail: s.detail,
+      const when = (date, slot) => { const t = timeOf(p, slot); return { date: onDate(date, slot, t), t }; };
+      const first = rs.map(r => when(r.first, r.slot)).reduce((a, b) => (b.date + b.t < a.date + a.t ? b : a));
+      const last = rs.some(r => r.n == null) ? null : rs.map(r => when(addDays(r.first, r.n - 1), r.slot).date).sort().pop();
+      out.push({ date: first.date, time: s.hourly ? '' : first.t, kind: s.kind, title: s.title, detail: s.detail,
         until: s.count === 1 ? undefined : last, slots: s.hourly ? 'hourly' : s.slots });
     }
     for (const r of rules(p)) out.push({ date: r.from, kind: 'rule', title: r.text, until: r.to });
@@ -292,13 +296,14 @@
         sum -= d.mg || mg;
         st.next = Math.max(st.next || 0, d.at + 864e5);
       }
-      if (Math.max(now, st.next || 0) >= at(addDays(st.lastDay, 1), '00:00').getTime()) st.blocked = 'The 4-day Toradol limit has been reached.';
     }
+    if (st.next) st.next = Math.ceil(st.next / 6e4) * 6e4; // whole minutes, never before the dose is allowed
+    if (id === 'toradol' && Math.max(now, st.next || 0) >= at(addDays(st.lastDay, 1), '00:00').getTime()) st.blocked = 'The 4-day Toradol limit has been reached.';
     if (st.next && st.next <= now) st.next = null;
     return st;
   }
 
-  // ---- calendar export (RFC 5545), floating local times ----
+  // ---- calendar export (RFC 5545); the daily plan uses floating local times ----
   function fold(line) { // max 75 octets per line
     let out = '', n = 0;
     for (const ch of line) {
@@ -317,10 +322,10 @@
     return out;
   }
   const icsTime = (date, t, plusMin = 0) => { const d = at(date, t); d.setMinutes(d.getMinutes() + plusMin); return iso(d).replace(/-/g, '') + 'T' + hhmm(d).replace(':', '') + '00'; };
-  function calendar(fill) { // fill(event) adds the VEVENTs
-    const stamp = new Date().toISOString().replace(/[-:]|\.\d{3}/g, '');
-    const esc = t => String(t).replace(/[\\;,]/g, m => '\\' + m).replace(/\n/g, '\\n');
-    const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Recovery Companion//EN', 'CALSCALE:GREGORIAN', 'X-WR-CALNAME:Recovery plan'];
+  const utc = ms => new Date(ms).toISOString().replace(/[-:]|\.\d{3}/g, ''); // 20261019T213100Z
+  function calendar(fill, name) { // fill(event) adds the VEVENTs
+    const esc = t => String(t).replace(/[\\;,]/g, m => '\\' + m).replace(/\n/g, '\\n'), stamp = utc(Date.now());
+    const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Recovery Companion//EN', 'CALSCALE:GREGORIAN', ...(name ? [`X-WR-CALNAME:${name}`] : [])];
     fill((uid, when, summary, detail, alarms, rrule) => L.push('BEGIN:VEVENT', `UID:${uid}@recovery-companion`, `DTSTAMP:${stamp}`, ...when,
       ...(rrule ? [rrule] : []), `SUMMARY:${esc(summary)}`, ...(detail ? [`DESCRIPTION:${esc(detail)}`] : []),
       ...alarms.flatMap(a => ['BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${esc(summary)}`, `TRIGGER:${a}`, 'END:VALARM']), 'END:VEVENT'));
@@ -335,7 +340,8 @@
         for (const r of runs(s)) {
           if (r.n == null) continue; // open-ended courses need a length first
           for (const t of s.hourly ? awakeHours(p) : [timeOf(p, r.slot)]) {
-            event(`${s.id}-${r.slot}-${t.replace(':', '')}`, [`DTSTART:${icsTime(r.first, t)}`, `DTEND:${icsTime(r.first, t, appt ? 60 : 15)}`],
+            const day = onDate(r.first, s.hourly ? 'hourly' : r.slot, t);
+            event(`${s.id}-${r.slot}-${t.replace(':', '')}`, [`DTSTART:${icsTime(day, t)}`, `DTEND:${icsTime(day, t, appt ? 60 : 15)}`],
               s.title, s.detail, appt ? ['-P1D', '-PT1H'] : ['PT0S'], r.n > 1 ? `RRULE:FREQ=DAILY;COUNT=${r.n}` : '');
           }
         }
@@ -344,19 +350,24 @@
         event(`ms-${m.date}-${m.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
           [`DTSTART;VALUE=DATE:${m.date.replace(/-/g, '')}`, `DTEND;VALUE=DATE:${addDays(m.date, 1).replace(/-/g, '')}`], m.title, m.detail, ['PT9H']);
       }
-    });
+    }, 'Recovery plan');
   }
 
-  // One alert at the time the next as-needed dose is allowed: as a calendar file, or as a Google Calendar link
-  // (Google's mobile app can't open calendar files). The phone's calendar fires it even when the site is closed.
+  // One alert at the moment the next as-needed dose is allowed (`ms` from prnStatus): as a calendar file, or as
+  // a Google Calendar link (Google's mobile app can't open calendar files). Times are UTC, unlike the daily plan's
+  // floating times, because this is a fixed moment that must not move if the phone changes time zone.
   function reminder(id, ms) {
-    const d = new Date(ms), when = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    const when = new Date(ms).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
     return { title: `${PRN[id].name}: next dose allowed from ${when}, if needed`, detail: `${PRN[id].rule} Reminder from Recovery Companion (unofficial). Follow your care team's instructions.`,
-      start: icsTime(iso(d), hhmm(d)), end: icsTime(iso(d), hhmm(d), 5) };
+      start: utc(ms), end: utc(ms + 5 * 6e4) };
   }
   const reminderICS = (id, ms) => { const r = reminder(id, ms); return calendar(event => event(`next-${id}-${ms}`, [`DTSTART:${r.start}`, `DTEND:${r.end}`], r.title, r.detail, ['PT0S'])); };
-  const reminderURL = (id, ms) => { const r = reminder(id, ms); return 'https://calendar.google.com/calendar/render?' + new URLSearchParams({ action: 'TEMPLATE', text: r.title, dates: `${r.start}/${r.end}`, details: r.detail }); };
+  const reminderURL = (id, ms) => {
+    const r = reminder(id, ms); // a link can't carry an alert time, so the event text says how to set one
+    return 'https://calendar.google.com/calendar/render?' + new URLSearchParams({ action: 'TEMPLATE', text: r.title, dates: `${r.start}/${r.end}`, details: `Set this event's notification to "At time of event". ${r.detail}` });
+  };
 
-  const api = { SLOT_LABEL, PROCEDURES, CARE, MEDS, PRN, defaultProfile, series, runs, tasksFor, rules, rulesFor, milestones, timeline, prnFor, prnStatus, toICS, reminderICS, reminderURL, iso, at, addDays, daysBetween };
+  const discharge = p => ctx(p).D;
+  const api = { SLOT_LABEL, PROCEDURES, CARE, MEDS, PRN, defaultProfile, discharge, series, runs, tasksFor, rules, rulesFor, milestones, timeline, prnFor, prnStatus, toICS, reminderICS, reminderURL, iso, at, addDays, daysBetween };
   if (typeof module === 'object' && module.exports) module.exports = api; else root.Plan = api;
 })(this);

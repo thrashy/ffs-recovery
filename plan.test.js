@@ -78,17 +78,59 @@ const ids = (p, date, id) => P.tasksFor(p, date).filter(t => t.id === id).map(t 
   assert.strictEqual(lines.filter(l => l === 'BEGIN:VEVENT').length, lines.filter(l => l === 'END:VEVENT').length);
 }
 
-// As-needed reminder: a single event alerting at the exact next-dose time, and a Google link for the same slot.
+// As-needed reminder: one event at the next-dose moment (UTC, so a time-zone change can't move it), and a
+// Google link for the same slot. prnStatus rounds up to the minute so the alert never comes early.
 {
-  const ms = P.at('2026-03-07', '14:31').getTime();
+  const dose = P.at('2026-03-07', '10:31').getTime() + 59e3; // logged at 10:31:59
+  const ms = P.prnStatus(base(), [{ med: 'tylenol', at: dose }], 'tylenol', dose).next;
+  assert.strictEqual(ms, P.at('2026-03-07', '14:32').getTime());
+  const z = new Date(ms).toISOString().replace(/[-:]|\.\d{3}/g, '');
   const ics = P.reminderICS('tylenol', ms);
   assert.strictEqual(ics.split('BEGIN:VEVENT').length - 1, 1);
-  assert.ok(ics.includes('DTSTART:20260307T143100') && ics.includes('TRIGGER:PT0S'));
+  assert.ok(ics.includes(`DTSTART:${z}`) && z.endsWith('Z') && ics.includes('TRIGGER:PT0S'));
+  assert.ok(!ics.includes('X-WR-CALNAME') && P.toICS(base()).includes('X-WR-CALNAME:Recovery plan'));
   assert.ok(ics.split('\r\n').every(l => Buffer.byteLength(l) <= 75));
   const url = new URL(P.reminderURL('tylenol', ms));
   assert.strictEqual(url.searchParams.get('action'), 'TEMPLATE');
-  assert.strictEqual(url.searchParams.get('dates'), '20260307T143100/20260307T143600');
+  assert.strictEqual(url.searchParams.get('dates'), `${z}/${new Date(ms + 5 * 6e4).toISOString().replace(/[-:]|\.\d{3}/g, '')}`);
   assert.ok(url.searchParams.get('text').startsWith('Tylenol: next dose allowed from'));
+}
+
+// A discharge date before surgery (e.g. surgery moved later) is treated as same-day, never as earlier.
+{
+  const p = { ...base(), dischargeDate: '2026-02-20', meds: { doxy: true, toradol: true }, doxyDays: 7 };
+  assert.strictEqual(P.discharge(p), '2026-03-06');
+  assert.deepStrictEqual(ids(p, '2026-02-20', 'doxy'), []);
+  assert.deepStrictEqual(ids(p, '2026-03-06', 'doxy'), ['dinner']);
+  assert.deepStrictEqual(P.prnFor(p, '2026-03-05'), []);
+  assert.strictEqual(P.prnStatus(p, [], 'toradol', P.at('2026-03-06', '20:00').getTime()).blocked, '');
+}
+
+// A bedtime after midnight belongs to the evening before: exported on the next calendar date.
+{
+  const p = { ...base(), meds: { valium: true }, care: { oral: true, masseter: true } };
+  p.times = { ...p.times, bedtime: '01:30' };
+  const ics = P.toICS(p, { hourly: true }).replace(/\r\n /g, '');
+  const start = uid => ics.split('BEGIN:VEVENT').find(e => e.includes(`UID:${uid}@`)).match(/DTSTART:(\S+)/)[1];
+  assert.strictEqual(start('valium-pre-bedtime-0130'), '20260306T013000'); // night of 3/5, before surgery on 3/6
+  assert.strictEqual(start('chx-bedtime-0130'), '20260307T013000'); // same-day discharge: first bedtime is after surgery
+  assert.strictEqual(start('jaw-ex-breakfast-0000'), '20260308T000000'); // midnight after the first exercise day (3/7)
+  assert.strictEqual(P.timeline(p).find(e => e.title.startsWith('Valium')).date, '2026-03-06');
+}
+
+// The BIOCORNEUM and Diet switches are authoritative.
+{
+  const p = { ...base(), care: { scarGel: false, scalp: true, oral: true, diet: false } };
+  assert.deepStrictEqual(ids(p, '2026-03-20', 'gel'), []);
+  assert.ok(!P.rulesFor(p, '2026-03-07').some(r => r.id === 'diet' || r.id === 'sun'));
+}
+
+// Rounding up to the minute can't push the next Toradol dose past the 4-day limit unnoticed.
+{
+  const p = { ...base(), meds: { toradol: true } }; // discharged 3/6: last day 3/9
+  const dose = P.at('2026-03-09', '17:59').getTime() + 30e3;
+  const st = P.prnStatus(p, [{ med: 'toradol', at: dose, mg: 10 }], 'toradol', dose + 6e4);
+  assert.ok(st.blocked);
 }
 
 console.log('plan.test.js: all checks passed');
