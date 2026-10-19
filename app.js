@@ -398,6 +398,11 @@
     save();
   });
 
+  // The clinic doesn't publish this address, so it's assembled here instead of sitting in the HTML for scrapers.
+  const paEmail = ['clinical', 'deschamps-braly.com'].join('@');
+  $('#pa-email').textContent = paEmail;
+  $('#pa-email').href = `mailto:${paEmail}?subject=${encodeURIComponent('Patient question')}&body=${encodeURIComponent('Name:\r\nDate of surgery:\r\nPharmacy (for prescriptions):\r\n\r\n')}`;
+
   document.addEventListener('submit', e => e.preventDefault());
   window.addEventListener('hashchange', () => { render(); window.scrollTo(0, 0); $('#main').focus({ preventScroll: true }); });
   // Keep the as-needed countdowns current without disturbing someone mid-edit.
