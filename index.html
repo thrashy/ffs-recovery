@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Recovery Companion</title>
+<meta name="description" content="An unofficial, private medication and care tracker for facial feminization surgery patients of the Deschamps-Braly Clinic.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#111111">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Recovery">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500&family=Cormorant+Garamond:wght@300;400&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-phone" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></symbol>
+  <symbol id="i-arrow-up-right" viewBox="0 0 24 24"><path d="M7 7h10v10M7 17 17 7"/></symbol>
+  <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+  <symbol id="i-pill" viewBox="0 0 24 24"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></symbol>
+  <symbol id="i-droplet" viewBox="0 0 24 24"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></symbol>
+  <symbol id="i-clipboard" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="m3 17 2 2 4-4M3 7l2 2 4-4M13 6h8M13 12h8M13 18h8"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4M12 17h.01"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+</svg>
+
+<div class="chrome">
+  <header class="top">
+    <a class="brand" href="#today">
+      <svg class="logo" viewBox="0 0 426 39" fill="none" role="img" aria-label="Deschamps-Braly Clinic"><path d="M18.2862 0.205558L0 18.1423L0.512144 18.6446L18.7983 0.707915L18.2862 0.205558Z" fill="#965E32"/><path d="M21.1192 2.98064L2.83301 20.9174L3.34515 21.4197L21.6313 3.483L21.1192 2.98064Z" fill="#965E32"/><path d="M23.9473 5.75576L5.66113 23.6925L6.17328 24.1948L24.4594 6.25812L23.9473 5.75576Z" fill="#965E32"/><path d="M26.7783 8.53276L8.49219 26.4695L9.00433 26.9718L27.2905 9.03511L26.7783 8.53276Z" fill="#965E32"/><path d="M29.6084 11.3079L11.3223 29.2446L11.8344 29.7469L30.1206 11.8102L29.6084 11.3079Z" fill="#965E32"/><path d="M32.4395 14.0849L14.1533 32.0216L14.6655 32.5239L32.9516 14.5872L32.4395 14.0849Z" fill="#965E32"/><path d="M35.2676 16.86L16.9814 34.7967L17.4936 35.299L35.7798 17.3623L35.2676 16.86Z" fill="#965E32"/><path d="M38.0977 19.6351L19.8115 37.5718L20.3237 38.0741L38.6098 20.1374L38.0977 19.6351Z" fill="#965E32"/><path d="M59.2221 18.145L40.9414 0.202652L40.4294 0.705167L58.7101 18.6475L59.2221 18.145Z" fill="#965E32"/><path d="M56.3938 20.9155L38.1084 2.978L37.5963 3.48038L55.8817 21.4179L56.3938 20.9155Z" fill="#965E32"/><path d="M53.5664 23.6915L35.2803 5.75475L34.7681 6.2571L53.0543 24.1938L53.5664 23.6915Z" fill="#965E32"/><path d="M50.7383 26.4666L32.4521 8.52985L31.94 9.0322L50.2262 26.9689L50.7383 26.4666Z" fill="#965E32"/><path d="M47.9053 29.2436L29.6191 11.3069L29.107 11.8092L47.3932 29.7459L47.9053 29.2436Z" fill="#965E32"/><path d="M45.0772 32.0187L26.791 14.082L26.2789 14.5843L44.565 32.521L45.0772 32.0187Z" fill="#965E32"/><path d="M42.2461 34.7938L23.96 16.8571L23.4478 17.3594L41.734 35.2961L42.2461 34.7938Z" fill="#965E32"/><path d="M39.416 37.5708L21.1299 19.6341L20.6177 20.1364L38.9039 38.0731L39.416 37.5708Z" fill="#965E32"/><path d="M79.4067 8.73775H85.2825C89.5395 8.73775 93.6026 11.6401 93.6026 18.2052C93.6026 25.4756 89.372 27.7278 85.115 27.7278H79.4067V8.73775ZM84.8448 26.0996C89.184 26.0996 91.6841 23.6297 91.6841 18.2052C91.6841 13.2132 89.1576 10.3689 85.0093 10.3689H81.19V26.0996H84.8448Z" fill="currentColor"/><path d="M97.8594 8.73775H109.203V10.366H99.6456V17.1459H108.433V18.7189H99.6456V26.0996H109.203V27.7278H97.8594V8.73775Z" fill="currentColor"/><path d="M114.638 20.7883C115.187 24.4772 116.477 26.4305 120.57 26.4305C123.948 26.4305 125.238 24.5585 125.238 22.7939C125.238 21.0292 124.533 20.0773 119.8 18.5593C115.707 17.2562 113.704 16.0082 113.704 13.1871C113.704 10.6098 115.872 8.33145 119.609 8.33145C123.07 8.33145 125.705 10.0729 126.146 13.5963L124.277 13.9214C123.866 11.643 122.808 10.0409 119.609 10.0409C116.862 10.0409 115.543 11.5327 115.543 13.1871C115.543 14.6383 116.13 15.4654 120.293 16.8237C125.758 18.6145 127.051 19.8886 127.051 22.7387C127.051 25.5888 124.853 28.1371 120.487 28.1371C115.707 28.1371 113.319 25.6149 112.77 21.1105L114.638 20.7883Z" fill="currentColor"/><path d="M129.933 18.0688C129.933 11.5298 133.861 8.32849 138.006 8.32849C141.96 8.32849 144.707 11.1235 145.257 14.8675L143.417 15.2216C142.924 12.4527 141.332 10.0496 138.009 10.0496C134.686 10.0496 131.857 12.5195 131.857 18.0804C131.857 23.6413 134.501 26.3811 138.009 26.3811C141.517 26.3811 143.062 23.9925 143.42 20.7651L145.315 21.035C144.904 25.5104 142.084 28.1428 138.009 28.1428C133.89 28.1341 129.933 25.3421 129.933 18.0688Z" fill="currentColor"/><path d="M149.569 8.73775H151.356V17.0675H160.61V8.73775H162.396V27.7307H160.61V18.6928H151.356V27.7278H149.569V8.73775Z" fill="currentColor"/><path d="M178.237 23.6326H169.065L167.596 27.7307H165.81L172.714 8.73775H174.582L181.474 27.7307H179.688L178.237 23.6326ZM169.585 22.2221H177.708L173.677 10.8797H173.621L169.585 22.2221Z" fill="currentColor"/><path d="M184.909 8.73775H187.697L193.89 23.9809H193.946L200.18 8.73195H202.927V27.7249H201.14V10.9203H201.085L194.11 27.7539H193.725L186.748 10.9203H186.692V27.7539H184.906L184.909 8.73775Z" fill="currentColor"/><path d="M208.415 8.73775H215.666C219.265 8.73775 222.009 10.691 222.009 14.5163C222.009 18.3416 219.347 20.2659 215.722 20.2659H210.201V27.7278H208.415V8.73775ZM215.554 18.6406C217.998 18.6406 220.222 17.4796 220.222 14.5163C220.222 11.553 217.998 10.366 215.498 10.366H210.21V18.6406H215.554Z" fill="currentColor"/><path d="M226.072 20.7884C226.621 24.4773 227.911 26.4305 232.003 26.4305C235.382 26.4305 236.671 24.5585 236.671 22.7939C236.671 21.0293 235.958 20.0802 231.233 18.5623C227.141 17.2591 225.137 16.0111 225.137 13.19C225.137 10.6127 227.306 8.3344 231.042 8.3344C234.503 8.3344 237.139 10.0758 237.579 13.5993L235.711 13.9243C235.291 11.6402 234.23 10.0497 231.042 10.0497C228.296 10.0497 226.976 11.5415 226.976 13.1958C226.976 14.647 227.564 15.4742 231.727 16.8325C237.191 18.6232 238.484 19.8974 238.484 22.7475C238.484 25.5976 236.287 28.1458 231.921 28.1458C227.141 28.1458 224.753 25.6237 224.203 21.1192L226.072 20.7884Z" fill="currentColor"/><path d="M244.104 17.4738H253.138V19.2386H244.104V17.4738Z" fill="currentColor"/><path d="M260.289 8.73775H267.402C271.001 8.73775 273.004 10.7694 273.004 13.5934C273.004 15.6831 271.797 16.9862 270.395 17.5261V17.5957C272.044 18.0311 273.718 19.549 273.718 22.2075C273.718 25.7078 271.465 27.722 267.073 27.722H260.289V8.73775ZM267.017 16.8643C269.955 16.8643 271.218 15.6715 271.218 13.5818C271.218 11.4921 269.626 10.3544 266.961 10.3544H262.075V16.8759L267.017 16.8643ZM266.852 26.088C270.313 26.088 271.932 24.7036 271.932 22.2075C271.932 19.7115 270.395 18.5448 266.937 18.5448H262.075V26.0909L266.852 26.088Z" fill="currentColor"/><path d="M278.11 8.73775H285.361C289.26 8.73775 291.704 10.4211 291.704 14.2522C291.704 17.5609 289.589 19.2443 286.759 19.6506L291.11 27.7278H289.054L284.853 19.7231H279.897V27.7278H278.11V8.73775ZM285.249 18.0978C287.694 18.0978 289.918 17.2039 289.918 14.2464C289.918 11.2889 287.879 10.3631 285.197 10.3631H279.908V18.0978H285.249Z" fill="currentColor"/><path d="M306.176 23.6326H297.004L295.535 27.7307H293.754L300.647 8.73775H302.515L309.407 27.7307H307.621L306.176 23.6326ZM297.524 22.2221H305.653L301.616 10.8797H301.56L297.524 22.2221Z" fill="currentColor"/><path d="M312.851 8.73775H314.637V26.0996H323.133V27.7278H312.851V8.73775Z" fill="currentColor"/><path d="M328.228 19.7231L321.882 8.73775H323.885L329.047 18.0427H329.13L334.268 8.73775H336.272L329.929 19.7231V27.7278H328.225L328.228 19.7231Z" fill="currentColor"/><path d="M344.236 18.0688C344.236 11.5298 348.164 8.32849 352.309 8.32849C356.264 8.32849 359.01 11.1235 359.56 14.8675L357.721 15.2216C357.212 12.4527 355.632 10.0496 352.309 10.0496C348.986 10.0496 346.157 12.5195 346.157 18.0804C346.157 23.6413 348.801 26.3811 352.309 26.3811C355.817 26.3811 357.362 23.9925 357.721 20.7651L359.616 21.035C359.204 25.5104 356.384 28.1428 352.309 28.1428C348.19 28.1341 344.236 25.3421 344.236 18.0688Z" fill="currentColor"/><path d="M363.87 8.73775H365.656V26.0996H374.143V27.7278H363.861L363.87 8.73775Z" fill="currentColor"/><path d="M377.983 8.73775H379.77V27.7307H377.983V8.73775Z" fill="currentColor"/><path d="M385.398 8.73775H387.843L396.794 25.2057H396.85V8.73775H398.637V27.7307H396.286L387.238 11.2599H387.179V27.7278H385.393L385.398 8.73775Z" fill="currentColor"/><path d="M404.263 8.73775H406.049V27.7307H404.263V8.73775Z" fill="currentColor"/><path d="M410.579 18.0688C410.579 11.5298 414.507 8.32849 418.652 8.32849C422.607 8.32849 425.354 11.1235 425.903 14.8675L424.064 15.2216C423.57 12.4556 421.978 10.0409 418.652 10.0409C415.327 10.0409 412.5 12.5108 412.5 18.0717C412.5 23.6326 415.145 26.3724 418.652 26.3724C422.16 26.3724 423.706 23.9838 424.064 20.7563L425.959 21.0263C425.548 25.5017 422.727 28.1341 418.652 28.1341C414.533 28.1341 410.579 25.3421 410.579 18.0688Z" fill="currentColor"/></svg>
+      <span class="tag">Recovery companion · Unofficial</span>
+    </a>
+    <a class="call" href="tel:+14158776518"><svg class="i" aria-hidden="true"><use href="#i-phone"/></svg><span>Call the office</span></a>
+  </header>
+  <nav class="tabs" aria-label="Sections">
+    <a href="#today"><svg class="i" aria-hidden="true"><use href="#i-list"/></svg>Today</a>
+    <a href="#plan"><svg class="i" aria-hidden="true"><use href="#i-calendar"/></svg>Plan</a>
+    <a href="#setup"><svg class="i" aria-hidden="true"><use href="#i-clipboard"/></svg>My sheet</a>
+  </nav>
+</div>
+
+<main id="main" tabindex="-1"></main>
+
+<footer>
+  <p><strong>Not officially endorsed.</strong> Recovery Companion is an independent tool made by a patient. It is not affiliated with or endorsed by the Deschamps-Braly Clinic, and it does not give medical advice. Your printed instructions and your care team always come first.</p>
+  <p>Questions about your medications, side effects, or a possible allergic reaction? Call the office right away at <a href="tel:+14158776518">+1&nbsp;415&nbsp;877&nbsp;6518</a> (Mon–Fri, 9am–6pm PT). In an emergency, call 911.</p>
+  <p>Your information is saved only in this browser, on this device.</p>
+</footer>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="plan.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
