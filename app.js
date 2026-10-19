@@ -37,6 +37,15 @@
 
   let state = load();
   let viewDate = P.iso(new Date());
+  let icsHourly = false;
+  let blobs = []; // calendar-file URLs made by the current render
+
+  // Calendar files go in real links the user taps: iPhone Safari only hands a generated file to Calendar that way.
+  function calendarFile(text) {
+    const url = URL.createObjectURL(new Blob([text], { type: 'text/calendar;charset=utf-8' }));
+    blobs.push(url);
+    return url;
+  }
 
   function load() {
     try {
@@ -71,7 +80,7 @@
       </section>
       <ul class="features">
         <li>${icon('list')}<h2>Today’s checklist</h2><p>Every dose and care step in order, ticked off as you go.</p></li>
-        <li>${icon('clock')}<h2>As-needed timers</h2><p>See when your next Tylenol, Toradol, or Tramadol is allowed.</p></li>
+        <li>${icon('clock')}<h2>As-needed timers</h2><p>See when your next Tylenol, Toradol, or Tramadol is allowed, and get a phone reminder.</p></li>
         <li>${icon('calendar')}<h2>Calendar reminders</h2><p>Add your whole plan, with alarms, to Apple or Google Calendar.</p></li>
       </ul>
       <aside class="notice big">${icon('info')}<p><strong>Unofficial and private.</strong> This is an independent tool made by a patient. It is not affiliated with or endorsed by the Deschamps-Braly Clinic, and it does not give medical advice. Always follow your care team’s instructions. Everything you enter stays on this device.</p></aside>`;
@@ -147,6 +156,9 @@
       <p class="detail">${esc(def.rule)}</p>
       ${status}
       ${id === 'toradol' ? `<p class="meta">${st.mg24} of 40 mg in the last 24 hours · last day ${esc(fmtDate(st.lastDay))}</p>` : ''}
+      ${st.next && !st.blocked ? `<div class="remind"><p>${icon('bell')}Remind me at ${esc(clock(st.next))}</p>
+        <a href="${calendarFile(P.reminderICS(id, st.next))}" download="${id}-next-dose.ics">Apple Calendar</a>
+        <a href="${esc(P.reminderURL(id, st.next))}" target="_blank" rel="noopener">Google Calendar</a></div>` : ''}
       ${recent.length ? `<ul class="doses" aria-label="Doses in the last 24 hours">${recent.map(x => `<li>${esc(fmtWhen(x.at))}<button type="button" class="x" data-act="undose" data-id="${esc(x.id)}" aria-label="Remove the ${esc(fmtWhen(x.at))} dose">${icon('x')}</button></li>`).join('')}</ul>` : ''}
       <div class="prn-actions">
         <button type="button" class="btn${!st.blocked && !st.next ? '' : ' ghost'}" data-act="dose" data-med="${id}" data-focus="dose-${id}">Log a dose now</button>
@@ -172,10 +184,10 @@
         <p class="eyebrow">Your plan · Surgery ${esc(fmtDate(S, { weekday: 'short', month: 'long', day: 'numeric' }))}</p>
         <h1 class="display">Every step, <em>from prep to three months.</em></h1>
         <div class="actions">
-          <button type="button" class="pill" data-act="ics" data-focus="ics">Add to my calendar<span class="dot">${icon('calendar')}</span></button>
-          ${p.care.masseter ? '<label class="inline"><input class="check sm" type="checkbox" id="ics-hourly"> Include hourly jaw-exercise reminders</label>' : ''}
+          <a class="pill" href="${calendarFile(P.toICS(p, { hourly: icsHourly }))}" download="recovery-plan.ics" data-focus="ics">Add to my calendar<span class="dot">${icon('calendar')}</span></a>
+          ${p.care.masseter ? `<label class="inline"><input class="check sm" type="checkbox" data-act="hourly" data-focus="hourly"${icsHourly ? ' checked' : ''}> Include hourly jaw-exercise reminders</label>` : ''}
         </div>
-        <p class="hint">Downloads a calendar file with alarms. Open it on your phone to add everything to Apple or Google Calendar.${open.length ? ` ${esc(open.join(' and '))} ${open.length > 1 ? 'are' : 'is'} left out until you add the course length in My sheet.` : ''}</p>
+        <p class="hint">A calendar file with an alarm for every step, so your phone reminds you even when this site is closed. On iPhone, open this page in Safari. Google Calendar can only import the file on a computer (calendar.google.com, then Settings, then Import).${open.length ? ` ${esc(open.join(' and '))} ${open.length > 1 ? 'are' : 'is'} left out until you add the course length in My sheet.` : ''}</p>
       </section>
       ${phases.map(([name, a, b]) => {
         const list = entries.filter(e => { const n = P.daysBetween(S, e.date); return n >= a && n <= b; });
@@ -274,6 +286,9 @@
     let view = location.hash.slice(1);
     if (!['today', 'plan', 'setup'].includes(view)) view = 'today';
     if (!state.profile.surgeryDate && view !== 'setup') view = 'welcome';
+    const stale = blobs;
+    blobs = [];
+    setTimeout(() => stale.forEach(u => URL.revokeObjectURL(u)), 60000); // a tap on a just-replaced link still works
     const focus = document.activeElement && document.activeElement.dataset.focus, main = $('#main');
     main.innerHTML = VIEWS[view]();
     main.dataset.view = view;
@@ -310,18 +325,9 @@
       () => { state.doses = state.doses.filter(x => x.id !== dose.id); save(); render(); });
   }
 
-  function downloadICS() {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([P.toICS(state.profile, { hourly: !!($('#ics-hourly') || {}).checked })], { type: 'text/calendar' }));
-    a.download = 'recovery-plan.ics';
-    document.body.append(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-    toast('Calendar file downloaded. Open it to add the reminders.');
-  }
-
   document.addEventListener('click', e => {
+    const file = e.target.closest('a[download]');
+    if (file) toast(`If your calendar doesn't open, find ${file.download} in your downloads and open it.`);
     const b = e.target.closest('button[data-act]');
     if (!b) return;
     const p = state.profile, act = b.dataset.act;
@@ -330,7 +336,6 @@
     else if (act === 'sets') { state.count[b.dataset.key] = Math.max(0, (state.count[b.dataset.key] || 0) + +b.dataset.n); save(); render(); }
     else if (act === 'dose') logDose(b);
     else if (act === 'undose') { state.doses = state.doses.filter(x => x.id !== b.dataset.id); save(); render(); toast('Dose removed.'); }
-    else if (act === 'ics') downloadICS();
     else if (act === 'add-appt') { const id = Date.now().toString(36); p.appts.push({ id, label: '', at: '' }); save(); render(); $('#al-' + id).focus(); }
     else if (act === 'del-appt') { p.appts = p.appts.filter(a => a.id !== b.dataset.id); save(); render(); }
     else if (act === 'finish') {
@@ -354,6 +359,7 @@
 
   document.addEventListener('change', e => {
     const el = e.target, ds = el.dataset, p = state.profile;
+    if (ds.act === 'hourly') { icsHourly = el.checked; render(); return; }
     if (ds.act === 'task') {
       if (el.checked) state.done[ds.key] = Date.now(); else delete state.done[ds.key];
       save(); render();

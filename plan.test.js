@@ -78,4 +78,17 @@ const ids = (p, date, id) => P.tasksFor(p, date).filter(t => t.id === id).map(t 
   assert.strictEqual(lines.filter(l => l === 'BEGIN:VEVENT').length, lines.filter(l => l === 'END:VEVENT').length);
 }
 
+// As-needed reminder: a single event alerting at the exact next-dose time, and a Google link for the same slot.
+{
+  const ms = P.at('2026-03-07', '14:31').getTime();
+  const ics = P.reminderICS('tylenol', ms);
+  assert.strictEqual(ics.split('BEGIN:VEVENT').length - 1, 1);
+  assert.ok(ics.includes('DTSTART:20260307T143100') && ics.includes('TRIGGER:PT0S'));
+  assert.ok(ics.split('\r\n').every(l => Buffer.byteLength(l) <= 75));
+  const url = new URL(P.reminderURL('tylenol', ms));
+  assert.strictEqual(url.searchParams.get('action'), 'TEMPLATE');
+  assert.strictEqual(url.searchParams.get('dates'), '20260307T143100/20260307T143600');
+  assert.ok(url.searchParams.get('text').startsWith('Tylenol: next dose allowed from'));
+}
+
 console.log('plan.test.js: all checks passed');

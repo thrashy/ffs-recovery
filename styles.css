@@ -139,6 +139,11 @@ label.task { cursor: pointer; }
 .x { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--muted); cursor: pointer; }
 .x:hover { color: var(--text); }
 .prn-actions { display: grid; gap: 4px; }
+.remind { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.remind p { display: flex; grid-column: 1 / -1; align-items: center; gap: 8px; color: var(--text-2); font-size: .9375rem; }
+.remind p .i { color: var(--copper-hi); }
+.remind a { display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 12px; border: 1px solid var(--control); border-radius: 999px; color: var(--text); font-size: .875rem; text-align: center; text-decoration: none; transition: border-color .2s; }
+.remind a:hover { border-color: var(--copper-hi); }
 details summary { display: flex; align-items: center; min-height: 44px; color: var(--copper-hi); text-decoration: underline; text-underline-offset: 4px; cursor: pointer; list-style: none; }
 details summary::-webkit-details-marker { display: none; }
 .row { display: flex; gap: 8px; }

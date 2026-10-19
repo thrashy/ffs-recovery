@@ -316,33 +316,47 @@
     for (let h = start; h < end; h++) out.push(pad(h % 24) + ':00');
     return out;
   }
-  function toICS(p, opts = {}) {
+  const icsTime = (date, t, plusMin = 0) => { const d = at(date, t); d.setMinutes(d.getMinutes() + plusMin); return iso(d).replace(/-/g, '') + 'T' + hhmm(d).replace(':', '') + '00'; };
+  function calendar(fill) { // fill(event) adds the VEVENTs
     const stamp = new Date().toISOString().replace(/[-:]|\.\d{3}/g, '');
     const esc = t => String(t).replace(/[\\;,]/g, m => '\\' + m).replace(/\n/g, '\\n');
-    const dt = (date, t, plusMin = 0) => { const d = at(date, t); d.setMinutes(d.getMinutes() + plusMin); return iso(d).replace(/-/g, '') + 'T' + hhmm(d).replace(':', '') + '00'; };
     const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Recovery Companion//EN', 'CALSCALE:GREGORIAN', 'X-WR-CALNAME:Recovery plan'];
-    const event = (uid, when, summary, detail, alarms, rrule) => L.push('BEGIN:VEVENT', `UID:${uid}@recovery-companion`, `DTSTAMP:${stamp}`, ...when,
+    fill((uid, when, summary, detail, alarms, rrule) => L.push('BEGIN:VEVENT', `UID:${uid}@recovery-companion`, `DTSTAMP:${stamp}`, ...when,
       ...(rrule ? [rrule] : []), `SUMMARY:${esc(summary)}`, ...(detail ? [`DESCRIPTION:${esc(detail)}`] : []),
-      ...alarms.flatMap(a => ['BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${esc(summary)}`, `TRIGGER:${a}`, 'END:VALARM']), 'END:VEVENT');
-    for (const s of series(p)) {
-      if (s.hourly && !opts.hourly) continue;
-      const appt = s.kind === 'appt';
-      for (const r of runs(s)) {
-        if (r.n == null) continue; // open-ended courses need a length first
-        for (const t of s.hourly ? awakeHours(p) : [timeOf(p, r.slot)]) {
-          event(`${s.id}-${r.slot}-${t.replace(':', '')}`, [`DTSTART:${dt(r.first, t)}`, `DTEND:${dt(r.first, t, appt ? 60 : 15)}`],
-            s.title, s.detail, appt ? ['-P1D', '-PT1H'] : ['PT0S'], r.n > 1 ? `RRULE:FREQ=DAILY;COUNT=${r.n}` : '');
-        }
-      }
-    }
-    for (const m of milestones(p)) {
-      event(`ms-${m.date}-${m.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-        [`DTSTART;VALUE=DATE:${m.date.replace(/-/g, '')}`, `DTEND;VALUE=DATE:${addDays(m.date, 1).replace(/-/g, '')}`], m.title, m.detail, ['PT9H']);
-    }
+      ...alarms.flatMap(a => ['BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${esc(summary)}`, `TRIGGER:${a}`, 'END:VALARM']), 'END:VEVENT'));
     L.push('END:VCALENDAR');
     return L.map(fold).join('\r\n') + '\r\n';
   }
+  function toICS(p, opts = {}) {
+    return calendar(event => {
+      for (const s of series(p)) {
+        if (s.hourly && !opts.hourly) continue;
+        const appt = s.kind === 'appt';
+        for (const r of runs(s)) {
+          if (r.n == null) continue; // open-ended courses need a length first
+          for (const t of s.hourly ? awakeHours(p) : [timeOf(p, r.slot)]) {
+            event(`${s.id}-${r.slot}-${t.replace(':', '')}`, [`DTSTART:${icsTime(r.first, t)}`, `DTEND:${icsTime(r.first, t, appt ? 60 : 15)}`],
+              s.title, s.detail, appt ? ['-P1D', '-PT1H'] : ['PT0S'], r.n > 1 ? `RRULE:FREQ=DAILY;COUNT=${r.n}` : '');
+          }
+        }
+      }
+      for (const m of milestones(p)) {
+        event(`ms-${m.date}-${m.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+          [`DTSTART;VALUE=DATE:${m.date.replace(/-/g, '')}`, `DTEND;VALUE=DATE:${addDays(m.date, 1).replace(/-/g, '')}`], m.title, m.detail, ['PT9H']);
+      }
+    });
+  }
 
-  const api = { SLOT_LABEL, PROCEDURES, CARE, MEDS, PRN, defaultProfile, series, runs, tasksFor, rules, rulesFor, milestones, timeline, prnFor, prnStatus, toICS, iso, at, addDays, daysBetween };
+  // One alert at the time the next as-needed dose is allowed: as a calendar file, or as a Google Calendar link
+  // (Google's mobile app can't open calendar files). The phone's calendar fires it even when the site is closed.
+  function reminder(id, ms) {
+    const d = new Date(ms), when = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    return { title: `${PRN[id].name}: next dose allowed from ${when}, if needed`, detail: `${PRN[id].rule} Reminder from Recovery Companion (unofficial). Follow your care team's instructions.`,
+      start: icsTime(iso(d), hhmm(d)), end: icsTime(iso(d), hhmm(d), 5) };
+  }
+  const reminderICS = (id, ms) => { const r = reminder(id, ms); return calendar(event => event(`next-${id}-${ms}`, [`DTSTART:${r.start}`, `DTEND:${r.end}`], r.title, r.detail, ['PT0S'])); };
+  const reminderURL = (id, ms) => { const r = reminder(id, ms); return 'https://calendar.google.com/calendar/render?' + new URLSearchParams({ action: 'TEMPLATE', text: r.title, dates: `${r.start}/${r.end}`, details: r.detail }); };
+
+  const api = { SLOT_LABEL, PROCEDURES, CARE, MEDS, PRN, defaultProfile, series, runs, tasksFor, rules, rulesFor, milestones, timeline, prnFor, prnStatus, toICS, reminderICS, reminderURL, iso, at, addDays, daysBetween };
   if (typeof module === 'object' && module.exports) module.exports = api; else root.Plan = api;
 })(this);
